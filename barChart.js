@@ -1,14 +1,14 @@
 // Simpl-barChart by Max
+// v1.0.0
 
 "use strict";
 
 function BarChart(options) {
 	var chart = this;
-
 	chart.id = options.targetId;
+	chart.data = options.data;
 	chart.width = options.width || 500;
 	chart.height = options.height || 500;
-	chart.data = options.data;
 	chart.axisColor = options.axisColor || "#666";
 	chart.fontColor = options.fontColor || "#666";
 	chart.guidelineColor = options.guidelineColor || "#ddd";
@@ -20,40 +20,39 @@ function BarChart(options) {
 	chart.fontStyle = "normal";
 	chart.fontWeight = "300";
 
-	chart.labels = [];
-	chart.values = [];
-
 	chart.initChart();
-	chart.createCanvas();
 	chart.drawChart();
 }
 
 BarChart.prototype.initChart = function () {
 	var chart = this;
-
-	chart.data.forEach(function (item) {
-		chart.labels.push(item.label);
-		chart.values.push(item.value);
-	});
-
-	chart.vMargin = Math.ceil(chart.width / 100);
+	chart.vMargin = Math.ceil(chart.width / 200);
 	chart.hMargin = Math.ceil(chart.height / 100);
-	chart.fontSize = Math.ceil(chart.height * 0.03); // 3%
+	chart.fontSize = Math.ceil(chart.height * 0.05); // 5%
 
 	chart.itemsNum = chart.data.length;
-	chart.maxValue = Math.max.apply(null, chart.values);
-	chart.vLabelSize = chart.fontSize * ((chart.maxValue > 1000) ? 5 : (chart.maxValue > 100) ? 4 : (chart.maxValue > 10) ? 3 : 2)
+	chart.maxValue = Math.max.apply(null, chart.data.map(function (item) { return item.value }));
+	chart.vLabelSize = chart.fontSize * ((chart.maxValue > 9999) ? 5 : (chart.maxValue > 999) ? 4 : (chart.maxValue > 99) ? 3 : 2)
 	chart.vAxisSize = chart.height - chart.hMargin * 3 - chart.fontSize;
 	chart.hAxisSize = chart.width - chart.hMargin * 3 - chart.vLabelSize;
 
 	chart.Ox = chart.vMargin * 2 + chart.vLabelSize;
 	chart.Oy = chart.hMargin + chart.vAxisSize;
-	chart.vScaleMax = Math.ceil((chart.maxValue / 10) || 1) * 10;
-	chart.vScaleStep = chart.vScaleMax / 10;
-	chart.vScale = Math.floor((chart.vAxisSize - chart.fontSize) / chart.vScaleMax);
+	chart.vScaleStep = Math.ceil(chart.maxValue / 10) || 1;
+	chart.vScale = (chart.vAxisSize - chart.fontSize) / (chart.vScaleStep * 10);
 	var size = Math.floor(chart.hAxisSize / chart.itemsNum);
 	chart.barMargin = Math.floor((size * 10) / 100) + 1;
 	chart.barSize = size - chart.barMargin;
+};
+
+BarChart.prototype.drawChart = function () {
+	var chart = this;
+	chart.createCanvas();
+	chart.drawVerticalLabels();
+	chart.drawHorizontalLabels();
+	chart.drawHorizontalGuidelines();
+	chart.drawBars();
+	chart.drawAxis();
 };
 
 BarChart.prototype.createCanvas = function () {
@@ -67,15 +66,6 @@ BarChart.prototype.createCanvas = function () {
 	document.getElementById(chart.id).appendChild(canvas);
 
 	chart.context = canvas.getContext("2d");
-};
-
-BarChart.prototype.drawChart = function () {
-	var chart = this;
-	chart.drawVerticalLabels();
-	chart.drawHorizontalLabels();
-	chart.drawHorizontalGuidelines();
-	chart.drawBars();
-	chart.drawAxis();
 };
 
 BarChart.prototype.drawAxis = function () {
@@ -96,19 +86,18 @@ BarChart.prototype.drawAxis = function () {
 
 BarChart.prototype.drawVerticalLabels = function () {
 	var chart = this;
-
 	chart.context.font = chart.fontStyle + " " + chart.fontWeight + " " + chart.fontSize + "px " + chart.fontFamily;
 	chart.context.textAlign = "right";
 	chart.context.fillStyle = chart.fontColor;
 
-	// Draw labels
 	var step = Math.floor((chart.vAxisSize - chart.fontSize) / 10);
+	var labelX = chart.vLabelSize;
+	var labelText = 0;
+	var labelY = chart.Oy;
 	for (var i = 0; i <= 10; i++) {
-		var labelText = i * chart.vScaleStep;
-		var labelX = chart.vLabelSize;
-		var labelY = chart.Oy - i * step;
-
 		chart.context.fillText(labelText, labelX, labelY);
+		labelText += chart.vScaleStep;
+		labelY -= step;
 	}
 };
 
@@ -116,17 +105,14 @@ BarChart.prototype.drawHorizontalLabels = function () {
 	var chart = this;
 
 	var labelFont = chart.fontStyle + " " + chart.fontWeight + " " + chart.fontSize + "px " + chart.fontFamily;
-	chart.context.font = labelFont;
 	chart.context.textAlign = "center";
 	chart.context.textBaseline = "top";
-	chart.context.fillStyle = chart.fontColor;
+	// font & fillStyle already set
 
-	// Draw Labels
+	var labelY = chart.Oy + chart.hMargin;
 	for (var i = 0; i < chart.itemsNum; i++) {
-		var horizontalLabelX = chart.Ox + (i + 1) * chart.barMargin + i * chart.barSize + chart.barSize / 2;
-		var horizontalLabelY = chart.Oy + chart.hMargin;
-
-		chart.context.fillText(chart.labels[i], horizontalLabelX, horizontalLabelY);
+		var labelX = chart.Ox + (i + 1) * chart.barMargin + i * chart.barSize + chart.barSize / 2;
+		chart.context.fillText(chart.data[i].label, labelX, labelY);
 	}
 };
 
@@ -135,20 +121,14 @@ BarChart.prototype.drawHorizontalGuidelines = function () {
 	chart.context.strokeStyle = chart.guidelineColor;
 	chart.context.lineWidth = chart.guidelineWidth;
 
-	// Draw lines
+	var guidelineStartX = chart.Ox;
+	var guidelineEndX = chart.width - chart.vMargin;
 	var step = Math.floor((chart.vAxisSize - chart.fontSize) / 10);
-	for (var i = 1; i <= chart.itemsNum; i++) {
-		// Starting point coordinates
-		var horizontalGuidelineStartX = chart.Ox;
-		var horizontalGuidelineStartY = chart.Oy - i * step;
-
-		// End point coordinates
-		var horizontalGuidelineEndX = chart.width - chart.vMargin;
-		var horizontalGuidelineEndY = chart.Oy - i * step;
-
+	for (var i = 1; i <= 10; i++) {
+		var guidelineY = chart.Oy - i * step - 0.5;
 		chart.context.beginPath();
-		chart.context.moveTo(horizontalGuidelineStartX, horizontalGuidelineStartY);
-		chart.context.lineTo(horizontalGuidelineEndX, horizontalGuidelineEndY);
+		chart.context.moveTo(guidelineStartX, guidelineY);
+		chart.context.lineTo(guidelineEndX, guidelineY);
 		chart.context.stroke();
 	}
 };
@@ -156,35 +136,29 @@ BarChart.prototype.drawHorizontalGuidelines = function () {
 BarChart.prototype.drawBars = function () {
 	var chart = this;
 
+	var barX = chart.Ox + chart.barMargin;
+	var fillColor = chart.barColor;
+	var borderColor = chart.barColor;
+	chart.context.fillStyle = fillColor;
+	chart.context.strokeStyle = borderColor;
 	for (var i = 0; i < chart.itemsNum; i++) {
-		var color = chart.createRandomRGBColor();
-		var fillColor = (chart.barColor == "random") ? "rgba(" + color.r + ", " + color.g + ", " + color.b + ", 0.5)" : chart.barColor;
-		var borderColor = (chart.barColor == "random") ? "rgba(" + color.r + ", " + color.g + ", " + color.b + ", 1)" : chart.barColor;
+		var barHeight = chart.data[i].value * chart.vScale;
+		var barY = chart.Oy - barHeight;
+
+		if (chart.barColor == "random") {
+			var rndc = "rgba(" + rnd() + ", " + rnd() + ", " + rnd();
+			fillColor = rndc + ", 0.5)";
+			borderColor = rndc + ", 1)";
+			chart.context.fillStyle = fillColor;
+			chart.context.strokeStyle = borderColor;
+		}
 
 		chart.context.beginPath();
-
-		var barX = chart.Ox + (i + 1) * chart.barMargin + i * chart.barSize;
-		var barY = chart.Oy - chart.values[i] * chart.vScale;
-		var barWidth = chart.barSize;
-		var barHeight = chart.values[i] * chart.vScale;
-
-		chart.context.fillStyle = fillColor;
-		chart.context.strokeStyle = borderColor;
-		chart.context.rect(barX, barY, barWidth, barHeight);
+		chart.context.rect(barX, barY, chart.barSize, barHeight);
 		chart.context.stroke();
 		chart.context.fill();
+		barX += chart.barMargin + chart.barSize;
 	}
 };
 
-BarChart.prototype.createRandomRGBColor = function () {
-	var red = getRandomInt(0, 257);
-	var green = getRandomInt(0, 257);
-	var blue = getRandomInt(0, 257);
-	return { r: red, g: green, b: blue };
-};
-
-function getRandomInt(min, max) {
-	min = Math.ceil(min);
-	max = Math.floor(max);
-	return Math.floor(Math.random() * (max - min)) + min; //The maximum is exclusive and the minimum is inclusive
-}
+function rnd() { return Math.floor(Math.random() * 255); }
