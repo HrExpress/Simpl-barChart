@@ -1,5 +1,5 @@
 // Simpl-barChart by Max
-// v1.0.0
+// v1.1.0
 
 "use strict";
 
@@ -12,13 +12,13 @@ function BarChart(options) {
 	chart.axisColor = options.axisColor || "#666";
 	chart.fontColor = options.fontColor || "#666";
 	chart.guidelineColor = options.guidelineColor || "#ddd";
-	chart.barColor = options.barColor || "random";
+	chart.barColor = options.barColor || "#939";
 
-	chart.axisWidth = 1;
-	chart.guidelineWidth = 0.5;
-	chart.fontFamily = "times";
+	chart.fontFamily = "sans";
 	chart.fontStyle = "normal";
 	chart.fontWeight = "300";
+
+	chart.lastBarSelected = null;
 
 	chart.initChart();
 	chart.drawChart();
@@ -43,11 +43,12 @@ BarChart.prototype.initChart = function () {
 	var size = Math.floor(chart.hAxisSize / chart.itemsNum);
 	chart.barMargin = Math.floor((size * 10) / 100) + 1;
 	chart.barSize = size - chart.barMargin;
+
+	chart.createCanvas();
 };
 
 BarChart.prototype.drawChart = function () {
 	var chart = this;
-	chart.createCanvas();
 	chart.drawVerticalLabels();
 	chart.drawHorizontalLabels();
 	chart.drawHorizontalGuidelines();
@@ -65,15 +66,40 @@ BarChart.prototype.createCanvas = function () {
 	document.getElementById(chart.id).innerHTML = "";
 	document.getElementById(chart.id).appendChild(canvas);
 
+	chart.canvas = canvas;
 	chart.context = canvas.getContext("2d");
+	canvas.addEventListener('mousemove', function (e) {
+		var pos = chart.getMousePos(e);
+		var i = chart.detectBar(pos.x);
+		if (i !== chart.lastBarSelected) {
+			if (chart.lastBarSelected != null) {
+				chart.context.clearRect(0, 0, chart.canvas.width, chart.canvas.height);
+				chart.drawChart();
+			}
+
+			if (i != null)
+				chart.hiliteBar(i);
+
+			chart.lastBarSelected = i;
+		}
+	}, false);
 };
+
+BarChart.prototype.getMousePos = function (e) {
+	var chart = this;
+	var rect = chart.canvas.getBoundingClientRect();
+	return {
+		x: e.clientX - rect.left,
+		y: e.clientY - rect.top
+	};
+}
 
 BarChart.prototype.drawAxis = function () {
 	var chart = this;
 	// Vertical
 	chart.context.beginPath();
 	chart.context.strokeStyle = chart.axisColor;
-	chart.context.lineWidth = chart.axisWidth;
+	chart.context.lineWidth = 1;
 	chart.context.moveTo(chart.Ox, chart.hMargin);
 	chart.context.lineTo(chart.Ox, chart.Oy);
 	chart.context.stroke();
@@ -88,6 +114,7 @@ BarChart.prototype.drawVerticalLabels = function () {
 	var chart = this;
 	chart.context.font = chart.fontStyle + " " + chart.fontWeight + " " + chart.fontSize + "px " + chart.fontFamily;
 	chart.context.textAlign = "right";
+	chart.context.textBaseline = "alphabetic";
 	chart.context.fillStyle = chart.fontColor;
 
 	var step = Math.floor((chart.vAxisSize - chart.fontSize) / 10);
@@ -103,8 +130,6 @@ BarChart.prototype.drawVerticalLabels = function () {
 
 BarChart.prototype.drawHorizontalLabels = function () {
 	var chart = this;
-
-	var labelFont = chart.fontStyle + " " + chart.fontWeight + " " + chart.fontSize + "px " + chart.fontFamily;
 	chart.context.textAlign = "center";
 	chart.context.textBaseline = "top";
 	// font & fillStyle already set
@@ -119,7 +144,7 @@ BarChart.prototype.drawHorizontalLabels = function () {
 BarChart.prototype.drawHorizontalGuidelines = function () {
 	var chart = this;
 	chart.context.strokeStyle = chart.guidelineColor;
-	chart.context.lineWidth = chart.guidelineWidth;
+	chart.context.lineWidth = 0.5;
 
 	var guidelineStartX = chart.Ox;
 	var guidelineEndX = chart.width - chart.vMargin;
@@ -135,24 +160,12 @@ BarChart.prototype.drawHorizontalGuidelines = function () {
 
 BarChart.prototype.drawBars = function () {
 	var chart = this;
-
-	var barX = chart.Ox + chart.barMargin;
-	var fillColor = chart.barColor;
-	var borderColor = chart.barColor;
-	chart.context.fillStyle = fillColor;
-	chart.context.strokeStyle = borderColor;
+	var barX = chart.Ox + chart.barMargin + 0.5;
+	chart.context.fillStyle = chart.barColor;
+	chart.context.strokeStyle = chart.barColor;
 	for (var i = 0; i < chart.itemsNum; i++) {
 		var barHeight = chart.data[i].value * chart.vScale;
 		var barY = chart.Oy - barHeight;
-
-		if (chart.barColor == "random") {
-			var rndc = "rgba(" + rnd() + ", " + rnd() + ", " + rnd();
-			fillColor = rndc + ", 0.5)";
-			borderColor = rndc + ", 1)";
-			chart.context.fillStyle = fillColor;
-			chart.context.strokeStyle = borderColor;
-		}
-
 		chart.context.beginPath();
 		chart.context.rect(barX, barY, chart.barSize, barHeight);
 		chart.context.stroke();
@@ -161,4 +174,34 @@ BarChart.prototype.drawBars = function () {
 	}
 };
 
-function rnd() { return Math.floor(Math.random() * 255); }
+BarChart.prototype.detectBar = function (x) {
+	var chart = this;
+	var rem = (x - chart.Ox) % (chart.barMargin + chart.barSize) - chart.barMargin;
+	var i = null;
+	if (rem > 0)
+		i = Math.floor((x - chart.Ox) / (chart.barMargin + chart.barSize));
+
+	return i;
+}
+
+BarChart.prototype.hiliteBar = function (i) {
+	var chart = this;
+	if (chart.data.length <= i)
+		return;
+
+	var barX = chart.Ox + 0.5 + chart.barMargin + (chart.barMargin + chart.barSize) * i;
+	chart.context.fillStyle = "#000";
+	chart.context.strokeStyle = "#000";
+	var barHeight = chart.data[i].value * chart.vScale;
+	var barY = chart.Oy - barHeight;
+
+	chart.context.beginPath();
+	chart.context.rect(barX, barY, chart.barSize, barHeight);
+	chart.context.stroke();
+	chart.context.fill();
+
+	var labelY = chart.Oy + chart.hMargin;
+	var labelX = chart.Ox + (i + 1) * chart.barMargin + i * chart.barSize + chart.barSize / 2;
+	chart.context.fillText(chart.data[i].label, labelX, labelY);
+	chart.context.fillText(chart.data[i].value, labelX, barY - chart.fontSize);
+};
