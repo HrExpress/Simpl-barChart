@@ -10,6 +10,8 @@ To create the bar chart, you need a block level container like a div or p.
 ```
 Then you can create the BarChart object in your JavaScript file.
 
+Sample usage: https://codepen.io/anon/pen/qxbZxo
+
 ```js
 var barChart = new BarChart(options);
 
